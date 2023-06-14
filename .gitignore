@@ -9,6 +9,7 @@
 
 # testing
 /coverage
+aws-exports-es5.js
 
 # production
 /build
@@ -54,3 +55,5 @@ amplifytools.xcconfig
 .secret-*
 **.sample
 #amplify-do-not-edit-end
+
+amplify/mock-api-resources

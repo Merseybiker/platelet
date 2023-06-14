@@ -1,14 +1,12 @@
+import { aliasMutation } from "../utils/graphql-test-utils";
+
 describe("open the dashboard", () => {
     beforeEach(() => {
-        cy.loginByCognitoApi(Cypress.env("username"), Cypress.env("password"));
+        cy.signIn();
     });
 
     it("successfully loads", () => {
         cy.visit("/");
-    });
-    it("should have the correct title", () => {
-        //TODO this may change
-        cy.title().should("include", "platelet");
     });
 
     it("should display all the columns", () => {
@@ -16,7 +14,7 @@ describe("open the dashboard", () => {
         cy.get("[data-cy=ACTIVE-header]").should("contain", "ACTIVE");
         cy.get('[data-cy="PICKED UP-header"]').should("contain", "PICKED UP");
         cy.get("[data-cy=DELIVERED-header]").should("contain", "DELIVERED");
-        cy.get("[data-cy=dashboard-tabpanel-1]").click();
+        cy.get("[data-testid=dashboard-tab-completed]").click();
         cy.get("[data-cy=COMPLETED-header]").should("contain", "COMPLETED");
         cy.get("[data-cy=CANCELLED-header]").should("contain", "CANCELLED");
         cy.get("[data-cy=ABANDONED-header]").should("contain", "ABANDONED");
@@ -35,7 +33,17 @@ describe("open the dashboard", () => {
 
 describe("create a new task and open it", () => {
     before(() => {
-        cy.signIn();
+        cy.signIn("COORDINATOR");
+        cy.clearTasks("NEW");
+        const endpoint = Cypress.env("appsyncGraphqlEndpoint");
+        cy.intercept("POST", endpoint, (req) => {
+            // Queries
+            //aliasQuery(req, "GetLaunchList");
+
+            // Mutations
+            aliasMutation(req, "createTask");
+            aliasMutation(req, "createTaskAssignee");
+        });
     });
 
     after(() => {
@@ -51,22 +59,27 @@ describe("create a new task and open it", () => {
         cy.saveLocalStorage();
     });
 
-    it("successfully creates a new task", () => {
+    it("successfully creates a new task and opens it", () => {
         cy.visit("/");
         // get the length of the tasks before creating a new one
         cy.get("[data-cy=NEW-title-skeleton]").should("not.exist");
         cy.get(".MuiPaper-root").should("be.visible");
         cy.get("[data-cy=create-task-button]").click();
         cy.get("[data-cy=save-to-dash-button]").click();
-        cy.get("[data-cy=tasks-kanban-column-NEW]")
+        cy.get("[data-testid=tasks-kanban-column-NEW]")
             .children()
             .its("length")
             .should("be.gt", 0);
-    });
-
-    it("opens a new task and closes it", () => {
-        cy.visit("/");
-        cy.get("[data-cy=tasks-kanban-column-NEW]").children().first().click();
+        cy.wait("@gqlcreateTaskMutation")
+            .its("response.body.data.createTask")
+            .should("not.be.null");
+        cy.wait("@gqlcreateTaskAssigneeMutation")
+            .its("response.body.data.createTaskAssignee")
+            .should("not.be.null");
+        cy.get("[data-testid=tasks-kanban-column-NEW]")
+            .children()
+            .first()
+            .click();
         cy.url().should("include", "/task/");
         cy.get("[data-cy=task-status-close]").click();
         cy.url().should("not.include", "/task/");
@@ -92,39 +105,21 @@ describe("change the role view of the dashboard", () => {
         cy.saveLocalStorage();
     });
 
-    it("successfully changes the role view to COORDINATOR", () => {
-        cy.visit("/");
-        cy.get("[data-cy=role-identifier]").should("not.contain", "NULL VIEW");
-        cy.get("[data-cy=role-menu-button]").click();
-        // click the second menu option
-        cy.get(
-            "[data-cy=role-menu] > .MuiPaper-root > .MuiList-root > :nth-child(2)"
-        ).click();
-        cy.get("[data-cy=role-identifier]").should("contain", "COORDINATOR");
-        cy.get("[data-cy=tasks-kanban-column-NEW]").should("exist");
-    });
     it("successfully changes the role view to RIDER", () => {
         cy.visit("/");
-        cy.get("[data-cy=role-identifier]").should("not.contain", "NULL VIEW");
-        cy.get("[data-cy=role-menu-button]").click();
-        // click the third menu option
-        cy.get(
-            "[data-cy=role-menu] > .MuiPaper-root > .MuiList-root > :nth-child(3)"
-        ).click();
-        cy.get("[data-cy=role-identifier]").should("contain", "RIDER");
-        // assert that tasks-kanban-column-NEW is not present
-        cy.get("[data-cy=tasks-kanban-column-NEW]").should("not.exist");
+        cy.get("[data-testid=role-menu]").click();
+        // click the second menu option
+        cy.get('[data-value="RIDER"]').click();
+        cy.get("[data-testid=role-menu]").should("contain", "RIDER");
+        cy.get("[data-testid=tasks-kanban-column-NEW]").should("not.exist");
     });
     it("successfully changes the role view to ALL", () => {
         cy.visit("/");
-        cy.get("[data-cy=role-identifier]").should("not.contain", "NULL VIEW");
-        cy.get("[data-cy=role-menu-button]").click();
-        // click the first menu option
-        cy.get(
-            "[data-cy=role-menu] > .MuiPaper-root > .MuiList-root > :nth-child(1)"
-        ).click();
-        cy.get("[data-cy=role-identifier]").should("contain", "ALL");
-        cy.get("[data-cy=tasks-kanban-column-NEW]").should("exist");
+        cy.get("[data-testid=role-menu]").click();
+        // click the second menu option
+        cy.get('[data-value="ALL"]').click();
+        cy.get("[data-testid=role-menu]").should("contain", "ALL");
+        cy.get("[data-testid=tasks-kanban-column-NEW]").should("exist");
     });
 });
 
@@ -158,7 +153,7 @@ describe("filter tasks by various terms", () => {
         cy.get("[data-cy=tasks-filter-input]").click().type("LOW");
         // wait because of debounce
         cy.wait(1000);
-        cy.get(`[data-cy=tasks-kanban-column-NEW]`)
+        cy.get(`[data-testid=tasks-kanban-column-NEW]`)
             .children()
             .filter(":visible")
             .each(filterCheck);

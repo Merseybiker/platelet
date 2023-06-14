@@ -20,6 +20,7 @@ const initialState = {
         emailAddress: "",
         name: "",
     },
+    listed: 0,
 };
 
 const addressFields = {
@@ -37,7 +38,7 @@ const contactFields = {
     telephoneNumber: "Telephone",
 };
 
-const collapsedShowFields = ["line1", "town", "postcode"];
+const collapsedShowFields = ["ward", "line1", "town", "postcode"];
 const collapsedShowContactFields = ["name", "telephoneNumber"];
 
 function PopOutLocationSelectorForm(props) {
@@ -60,7 +61,6 @@ function PopOutLocationSelectorForm(props) {
     };
 
     const handleCancel = () => {
-        setState(initialState);
         props.onCancel();
     };
 

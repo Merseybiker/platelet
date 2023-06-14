@@ -15,7 +15,7 @@ async function generateMultipleAssignmentModels(
         _.isEmpty(selectedItems) ||
         (_.isEmpty(coordinators) && _.isEmpty(riders))
     ) {
-        return;
+        return [];
     }
     if (!tenantId) throw new Error("Tenant ID is required");
     const ridersMapped = Object.values(selectedItems).map((task) => {
@@ -43,7 +43,7 @@ async function generateMultipleAssignmentModels(
     const filtered = result.filter((assignment) => {
         return !allAssignees.some((assignee) => {
             return (
-                assignment.task.id === assignee.task.id &&
+                assignment.task?.id === assignee.task?.id &&
                 assignment.assignee.id === assignee.assignee.id &&
                 assignment.role === assignee.role
             );

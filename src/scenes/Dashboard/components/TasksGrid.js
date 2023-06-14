@@ -2,16 +2,18 @@ import React from "react";
 import _ from "lodash";
 import Grid from "@mui/material/Grid";
 import PropTypes from "prop-types";
-import { makeStyles } from 'tss-react/mui';
+import { makeStyles } from "tss-react/mui";
 import TasksGridColumn from "./TasksGridColumn";
-import { tasksStatus } from "../../../apiConsts";
 import { dashboardFilteredUserSelector } from "../../../redux/Selectors";
 import { useSelector } from "react-redux";
+import { Divider, useMediaQuery } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
+import * as models from "../../../models";
 
 const getColumnTitle = (key) => {
-    if (key.includes(tasksStatus.droppedOff))
+    if (key.includes(models.TaskStatus.DROPPED_OFF))
         key = [
-            ...key.filter((status) => status !== tasksStatus.droppedOff),
+            ...key.filter((status) => status !== models.TaskStatus.DROPPED_OFF),
             "DELIVERED",
         ];
 
@@ -49,29 +51,47 @@ function TasksGrid(props) {
     const { classes } = useStyles();
     const dashboardFilteredUser = useSelector(dashboardFilteredUserSelector);
 
+    const theme = useTheme();
+    const isSm = useMediaQuery(theme.breakpoints.down("sm"));
+
     let justifyContent = "flex-start";
 
     const excludeList = dashboardFilteredUser
-        ? [...props.excludeColumnList, tasksStatus.new]
+        ? [...props.excludeColumnList, models.TaskStatus.NEW]
         : props.excludeColumnList;
+
+    const columnCount = [
+        [models.TaskStatus.NEW],
+        [models.TaskStatus.ACTIVE],
+        [models.TaskStatus.PICKED_UP],
+        [models.TaskStatus.DROPPED_OFF],
+        [models.TaskStatus.COMPLETED],
+        [models.TaskStatus.CANCELLED],
+        [models.TaskStatus.ABANDONED],
+        [models.TaskStatus.REJECTED],
+        [models.TaskStatus.PENDING],
+    ].filter(
+        (column) => _.intersection(excludeList, column).length === 0
+    ).length;
 
     return (
         <Grid
             container
-            spacing={1}
+            spacing={0.5}
             direction={"row"}
             justifyContent={justifyContent}
             alignItems={"stretch"}
         >
             {[
-                [tasksStatus.new],
-                [tasksStatus.active],
-                [tasksStatus.pickedUp],
-                [tasksStatus.droppedOff],
-                [tasksStatus.completed],
-                [tasksStatus.cancelled],
-                [tasksStatus.abandoned],
-                [tasksStatus.rejected],
+                [models.TaskStatus.NEW],
+                [models.TaskStatus.ACTIVE],
+                [models.TaskStatus.PICKED_UP],
+                [models.TaskStatus.DROPPED_OFF],
+                [models.TaskStatus.COMPLETED],
+                [models.TaskStatus.CANCELLED],
+                [models.TaskStatus.ABANDONED],
+                [models.TaskStatus.REJECTED],
+                [models.TaskStatus.PENDING],
             ]
                 .filter(
                     (column) => _.intersection(excludeList, column).length === 0
@@ -79,14 +99,22 @@ function TasksGrid(props) {
                 .map((taskKey) => {
                     const title = getColumnTitle(taskKey);
                     return (
-                        <Grid item key={title} className={classes.column}>
-                            <TasksGridColumn
-                                title={title}
-                                onAddTaskClick={props.onAddTaskClick}
-                                taskKey={taskKey}
-                                showTasks={props.showTaskIds}
-                            />
-                        </Grid>
+                        <>
+                            <Grid item key={title} className={classes.column}>
+                                <TasksGridColumn
+                                    title={title}
+                                    columnCount={columnCount}
+                                    onAddTaskClick={props.onAddTaskClick}
+                                    taskKey={taskKey}
+                                    showTasks={props.showTaskIds}
+                                />
+                            </Grid>
+                            {!isSm && (
+                                <Grid item key={`${title}-divider`}>
+                                    <Divider orientation="vertical" />
+                                </Grid>
+                            )}
+                        </>
                     );
                 })}
         </Grid>

@@ -7,14 +7,40 @@ import { tasksStatus, userRoles } from "../../apiConsts";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import TasksGridColumn from "../../scenes/Dashboard/components/TasksGridColumn";
-import * as copyTaskDataToClipboard from "../../utilities/copyTaskDataToClipboard";
+import { useDispatch } from "react-redux";
+import React from "react";
+import * as assActions from "../../redux/taskAssignees/taskAssigneesActions";
+import * as commentActions from "../../redux/comments/commentsActions";
+import * as taskDeliverablesActions from "../../redux/taskDeliverables/taskDeliverablesActions";
 
 const tenantId = "tenantId";
+
+const FakeDispatchComponent = () => {
+    const dispatch = useDispatch();
+    React.useEffect(() => {
+        dispatch(assActions.initTaskAssignees());
+        dispatch(commentActions.initComments());
+        dispatch(taskDeliverablesActions.initTaskDeliverables());
+    }, [dispatch]);
+    return null;
+};
 
 describe("TaskContextMenu", () => {
     const RealDate = Date;
     const isoDate = "2021-11-29T23:24:58.987Z";
     const dateString = "2021-11-29";
+
+    const finishLoading = async () => {
+        await waitFor(() => {
+            expect(
+                screen.queryByTestId("tasks-kanban-column-skeleton")
+            ).toBeNull();
+        });
+        mockAllIsIntersecting(true);
+        await waitFor(() => {
+            expect(screen.queryByTestId("task-item-skeleton")).toBeNull();
+        });
+    };
 
     function mockDate() {
         global.Date = class extends RealDate {
@@ -526,12 +552,14 @@ describe("TaskContextMenu", () => {
                 tenantId,
             })
         );
-        const mockTaskAssignee = new models.TaskAssignee({
-            task,
-            assignee: whoami,
-            role: userRoles.coordinator,
-            tenantId,
-        });
+        const mockTaskAssignee = await DataStore.save(
+            new models.TaskAssignee({
+                task,
+                assignee: whoami,
+                role: userRoles.coordinator,
+                tenantId,
+            })
+        );
         const deliverableTypes = await Promise.all(
             ["test deliverable", "another one"].map((d) =>
                 DataStore.save(new models.DeliverableType({ label: d }))
@@ -554,19 +582,14 @@ describe("TaskContextMenu", () => {
         const preloadedState = {
             whoami: { user: whoami },
             roleView: userRoles.coordinator,
-            taskAssigneesReducer: {
-                items: [mockTaskAssignee],
-                ready: true,
-                isSynced: true,
-            },
             tenantId,
         };
         //render(<TaskContextMenu task={task} assignedRiders={[]} />, {
         //    preloadedState,
         //});
-        const querySpy = jest.spyOn(DataStore, "query");
         render(
             <>
+                <FakeDispatchComponent />
                 <TaskContextMenu task={task} assignedRiders={[]} />
                 <TasksGridColumn taskKey={[tasksStatus.new]} />
             </>,
@@ -574,13 +597,7 @@ describe("TaskContextMenu", () => {
                 preloadedState,
             }
         );
-        await waitFor(() => {
-            expect(querySpy).toHaveBeenCalledTimes(1);
-        });
-        mockAllIsIntersecting(true);
-        await waitFor(() => {
-            expect(querySpy).toHaveBeenCalledTimes(2);
-        });
+        await finishLoading();
         const button = screen.getByRole("button", { name: "task options" });
         userEvent.click(button);
         userEvent.click(screen.getByRole("menuitem", { name: "Duplicate" }));
@@ -618,11 +635,8 @@ describe("TaskContextMenu", () => {
                 id: expect.any(String),
             },
         });
-        mockAllIsIntersecting(true);
-        await waitFor(() => {
-            expect(querySpy).toHaveBeenCalledTimes(13);
-        });
         expect(screen.getByText("Task duplicated to NEW")).toBeInTheDocument();
+        await finishLoading();
         expect(screen.queryAllByRole("link")).toHaveLength(2);
     });
 
@@ -810,5 +824,120 @@ describe("TaskContextMenu", () => {
         expect(
             screen.getByRole("menuitem", { name: "Duplicate" })
         ).toHaveAttribute("aria-disabled", "true");
+    });
+
+    test.each`
+        action
+        ${"accept"} | ${"reject"}
+    `("accept or reject a pending task and undo it", async ({ action }) => {
+        const task = await DataStore.save(
+            new models.Task({
+                status: models.TaskStatus.PENDING,
+            })
+        );
+        const whoami = await DataStore.save(
+            new models.User({
+                displayName: "someone person",
+                roles: [models.Role.COORDINATOR],
+                tenantId,
+            })
+        );
+        const mockAssignment = new models.TaskAssignee({
+            assignee: whoami,
+            role: models.Role.COORDINATOR,
+            task,
+            tenantId,
+        });
+        const preloadedState = {
+            whoami: { user: whoami },
+            tenantId,
+        };
+        const saveSpy = jest.spyOn(DataStore, "save");
+        const deleteSpy = jest.spyOn(DataStore, "delete");
+        render(<TaskContextMenu task={task} assignedRiders={[]} />, {
+            preloadedState,
+        });
+        userEvent.click(screen.getByRole("button", { name: "task options" }));
+        if (action === "accept") {
+            userEvent.click(screen.getByRole("menuitem", { name: "Accept" }));
+            await waitFor(() => {
+                expect(saveSpy).toHaveBeenCalledTimes(2);
+            });
+            expect(saveSpy).toHaveBeenCalledWith({
+                ...task,
+                status: models.TaskStatus.NEW,
+            });
+            expect(saveSpy).toHaveBeenCalledWith({
+                ...mockAssignment,
+                id: expect.any(String),
+            });
+            expect(screen.getByText("Task accepted")).toBeInTheDocument();
+        } else {
+            userEvent.click(screen.getByRole("menuitem", { name: "Reject" }));
+            await waitFor(() => {
+                expect(saveSpy).toHaveBeenCalledTimes(2);
+            });
+            expect(saveSpy).toHaveBeenCalledWith({
+                ...task,
+                status: models.TaskStatus.REJECTED,
+                timeRejected: isoDate,
+            });
+            expect(saveSpy).toHaveBeenCalledWith({
+                ...mockAssignment,
+                id: expect.any(String),
+            });
+            expect(screen.getByText("Task rejected")).toBeInTheDocument();
+        }
+        userEvent.click(screen.getByRole("button", { name: "UNDO" }));
+        await waitFor(() => {
+            expect(saveSpy).toHaveBeenCalledTimes(3);
+        });
+        await waitFor(() => {
+            expect(deleteSpy).toHaveBeenCalledTimes(1);
+        });
+        const undoneTask = {
+            ...task,
+            status: models.TaskStatus.PENDING,
+            timeRejected: null,
+        };
+        expect(saveSpy).toHaveBeenCalledWith(undoneTask);
+        expect(deleteSpy).toHaveBeenCalledWith({
+            ...mockAssignment,
+            id: expect.any(String),
+            task: undoneTask,
+        });
+    });
+    test.each`
+        action
+        ${"Accept"} | ${"Reject"}
+    `("accept or reject a pending task failure", async ({ action }) => {
+        const task = await DataStore.save(
+            new models.Task({
+                status: models.TaskStatus.PENDING,
+            })
+        );
+        const whoami = await DataStore.save(
+            new models.User({
+                displayName: "someone person",
+                roles: [models.Role.COORDINATOR],
+                tenantId,
+            })
+        );
+        const preloadedState = {
+            whoami: { user: whoami },
+            tenantId,
+        };
+        const saveSpy = jest.spyOn(DataStore, "save").mockRejectedValue({});
+        render(<TaskContextMenu task={task} assignedRiders={[]} />, {
+            preloadedState,
+        });
+        userEvent.click(screen.getByRole("button", { name: "task options" }));
+        userEvent.click(screen.getByRole("menuitem", { name: action }));
+        await waitFor(() => {
+            expect(saveSpy).toHaveBeenCalledTimes(1);
+        });
+        expect(
+            screen.getByText("Sorry, something went wrong")
+        ).toBeInTheDocument();
     });
 });

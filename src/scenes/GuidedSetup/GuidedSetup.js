@@ -358,6 +358,7 @@ export const GuidedSetup = () => {
                             className={classes.tabButton}
                         />
                         <Tab
+                            data-testid="guided-setup-notes-tab"
                             icon={<NotesIcon className={classes.btnIcon} />}
                             label={
                                 <div>
@@ -400,12 +401,12 @@ export const GuidedSetup = () => {
                             onSetDropOffLocation={(value) => {
                                 setLocation("dropOffLocation", value);
                             }}
-                            onClearDropOffLocation={() =>
-                                (locations.current.dropOffLocation = null)
-                            }
-                            onClearPickUpLocation={() =>
-                                (locations.current.pickUpLocation = null)
-                            }
+                            onClearDropOffLocation={() => {
+                                locations.current.dropOffLocation = null;
+                            }}
+                            onClearPickUpLocation={() => {
+                                locations.current.pickUpLocation = null;
+                            }}
                         />
                     </Box>
                     <Box className={tabIndex === 2 ? show : hide}>

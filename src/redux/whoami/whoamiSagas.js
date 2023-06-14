@@ -24,7 +24,6 @@ const fakeUser = {
     displayName: "Offline User",
     roles: Object.values(userRoles),
     dateOfBirth: null,
-    profilePictureURL: null,
     profilePictureThumbnailURL: null,
 };
 
@@ -33,7 +32,6 @@ const testUserModel = new models.User({
     displayName: "Mock User",
     roles: Object.values(userRoles),
     dateOfBirth: null,
-    profilePictureURL: null,
     profilePictureThumbnailURL: null,
 });
 const testUser = { ...testUserModel, id: "whoami" };
@@ -116,21 +114,24 @@ function* getWhoami() {
                 for (const model of Object.values(models)) {
                     if (
                         [
-                            "Task",
                             "User",
-                            "TaskAssignee",
                             "RiderResponsibility",
-                            "Comment",
-                            "Location",
                             "Vehicle",
-                            "Deliverable",
                             "DeliverableType",
                             "PossibleRiderResponsibilities",
+                            "ScheduledTask",
                         ].includes(model.name)
                     ) {
                         modelsToSync.push(model);
                     }
                 }
+                const archivedModels = [
+                    models.Task,
+                    models.Comment,
+                    models.Location,
+                    models.TaskAssignee,
+                    models.Deliverable,
+                ];
 
                 yield call([DataStore, DataStore.configure], {
                     errorHandler: (err) => {
@@ -141,6 +142,11 @@ function* getWhoami() {
                         ...modelsToSync.map((model) =>
                             syncExpression(model, (m) =>
                                 m.tenantId("eq", tenantId)
+                            )
+                        ),
+                        ...archivedModels.map((model) =>
+                            syncExpression(model, (m) =>
+                                m.tenantId("eq", tenantId).archived("eq", 0)
                             )
                         ),
                         syncExpression(models.Tenant, (m) =>

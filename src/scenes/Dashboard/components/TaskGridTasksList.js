@@ -1,17 +1,10 @@
+import React from "react";
 import { Stack } from "@mui/material";
 import { Box } from "@mui/system";
 import PropTypes from "prop-types";
-import React from "react";
 import { showHide } from "../../../styles/common";
 import TaskItem from "./TaskItem";
-import DateStampDivider from "./TimeStampDivider";
-import { makeStyles } from "tss-react/mui";
-
-const useStyles = makeStyles()({
-    taskItem: {
-        width: "100%",
-    },
-});
+import DateStampDivider from "../../../components/DateStampDivider";
 
 export function sortByCreatedTime(items, order = "newest") {
     if (!items || items.length === 0) return [];
@@ -36,12 +29,11 @@ function TaskGridTasksList(props) {
     const { show, hide } = showHide().classes;
     let displayDate = false;
     let lastTime = new Date();
-    const { classes, cx } = useStyles();
     const filteredTasksIdsList = props.includeList || [];
     return (
         <Stack
             direction={"column"}
-            spacing={0}
+            spacing={1}
             data-cy={props.datacy}
             alignItems={"center"}
             justifyContent={"center"}
@@ -58,33 +50,25 @@ function TaskGridTasksList(props) {
                         timeComparison &&
                         (filteredTasksIdsList.length === 0 ||
                             filteredTasksIdsList.includes(task.id)) &&
-                        timeComparison.getDate() <= lastTime.getDate() - 1
+                        timeComparison.getDate() !== lastTime.getDate()
                     ) {
                         lastTime = timeComparison;
                         displayDate = true;
                     }
                     return (
                         <Box
-                            className={cx(
-                                classes.taskItem,
+                            sx={{ width: "100%" }}
+                            className={
                                 props.includeList === null ||
-                                    props.includeList.includes(task.id)
+                                props.includeList.includes(task.id)
                                     ? show
                                     : hide
-                            )}
+                            }
                             key={task.id}
                         >
-                            <Box
-                                display="flex"
-                                justifyContent="center"
-                                alignItems="center"
-                                height={35}
-                                sx={{ width: "100%" }}
-                            >
-                                {displayDate && (
-                                    <DateStampDivider date={lastTime} />
-                                )}
-                            </Box>
+                            {displayDate && (
+                                <DateStampDivider calendar date={lastTime} />
+                            )}
                             <TaskItem
                                 animate={props.animate}
                                 task={task}
